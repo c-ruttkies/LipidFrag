@@ -157,7 +157,7 @@ calculate.roc <- function(foreground.values, background.values, main = "") {
   auc <- performance( pred, "auc" )
   
   par(mar=c(5.1,5.1,4.1,2.1))
-  plot(perf, main = paste(main, "(pos) AUC: ", round(attributes(auc)$y.values[[1]], 3), sep = " "), cex.axis = 2, cex.lab = 2, lwd = 4)
+  plot(perf, main = paste(main, " AUC: ", round(attributes(auc)$y.values[[1]], 3), sep = " "), cex.axis = 2, cex.lab = 2, lwd = 4)
   text(0.5, 0.5, paste("AUC:",round(attributes(auc)$y.values[[1]], 3)), cex=2)
 }
 

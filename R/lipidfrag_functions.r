@@ -38,23 +38,6 @@ get.posterior.foreground <- function(value, model) {
 }
 
 
-# calculate the posterior foreground class probability (FCP) for a given MetFrag result list
-
-get.fcps.candidate.list <- function(candidate.list, lipid.class.models) {
-  class.names.model <- names(models)
-  fcps <- t(apply(candidate.list, 1, function(row) {
-    identifier <- as.character(row["Identifier"])
-    score <- as.numeric(row["FragmenterScore"])
-    matching.model.index <- which(startsWith(identifier, class.names.model))
-    if(length(matching.model.index) == 0) { return(c(NA, identifier)) }
-    if(length(matching.model.index) == 0) stop("More than one matching model for Identifier ", identifier, ". ", "Which shall I use?", sep="")
-    return(c(get.posterior.foreground(score, lipid.class.models[[matching.model.index]]), class.names.model[matching.model.index]))
-  }))
-  annotated.candidate.list <- cbind(candidate.list, fcps)
-  colnames(annotated.candidate.list) <- c(colnames(annotated.candidate.list), c("FCP", "LipidClass"))
-  return(annotated.candidate.list)
-} 
-
 # calculate ROC value for given background and foreground values
 
 calculate.single.roc <- function(relsFore, relsBack, thresh) {

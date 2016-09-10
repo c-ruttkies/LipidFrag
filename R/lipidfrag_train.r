@@ -70,13 +70,13 @@ generate.model <- function(filename) {
 
 # plot model distribution together with the underlying data
 
-plot.model.data <- function(model, main = "") {
+plot.model.data <- function(model, main, ...) {
   # get boundaries
   maximum.value = max(c(model[["data_bg"]], model[["data_fg"]]))
   a<-hist(model[["data_bg"]], breaks="FD", plot=F)$density
   b<-hist(model[["data_fg"]], breaks="FD", plot=F)$density
   # plot data
-  hist(model[["data_bg"]], ylim=c(0,max(c(a,b))+0.01), xlim=c(0,maximum.value), probability=T, breaks="FD", col=rgb(0,1,0,0.5), main=main, xlab="Scores", cex.lab=1.5, cex.axis=1.5, cex.main=1.5)
+  hist(model[["data_bg"]], ylim=c(0,max(c(a,b))+0.01), xlim=c(0,maximum.value), probability=T, breaks="FD", col=rgb(0,1,0,0.5), main=main, xlab="Scores", ...)
   hist(model[["data_fg"]], probability=T, breaks="FD", add=T, col=rgb(0,0,1,0.5))
   # plot densities of model distributions
   scores.range <- seq(0, maximum.value, 1)
@@ -87,7 +87,7 @@ plot.model.data <- function(model, main = "") {
 
 # perform ROC calculation for a specific classifier with 10-fold corss-validation
 
-calculate.roc <- function(foreground.values, background.values, main = "") {
+calculate.roc <- function(foreground.values, background.values, main = "", return.fcps = F, ...) {
   require(ROCR)
   
   is.foreground <- c(rep(T, length(foreground.values)), rep(F, length(background.values)))
@@ -115,12 +115,12 @@ calculate.roc <- function(foreground.values, background.values, main = "") {
     backTest <- data[groups==i & !is.foreground]
     foreTrain <- data[groups!=i & is.foreground]
     foreTest <- data[groups==i & is.foreground]
-    #exp dist bg
+    #gamma dist bg
     paramsBack <- get.model.params.gamma(backTrain)
     betaBack <- paramsBack[2]
     alphaBack <- paramsBack[1]
     
-    #norm dist fg
+    #gamma dist fg
     paramsFore <- get.model.params.gamma(foreTrain)
     betaFore <- paramsFore[2]
     alphaFore <- paramsFore[1]
@@ -130,8 +130,8 @@ calculate.roc <- function(foreground.values, background.values, main = "") {
     probsFore_back_mod <- sapply(foreTest, function(x) get.weighted.gamma.density(x, 0.5, alphaBack, betaBack))
     probsBack_fore_mod <- sapply(backTest, function(x) get.weighted.gamma.density(x, 0.5, alphaFore, betaFore))
     
-    probsBack_back_modp <- probsBack_back_mod / (probsBack_back_mod + probsBack_fore_mod) #spez
-    probsFore_fore_modp <- probsFore_fore_mod / (probsFore_back_mod + probsFore_fore_mod) #sens
+    probsBack_back_modp <- probsBack_back_mod / (probsBack_back_mod + probsBack_fore_mod)
+    probsFore_fore_modp <- probsFore_fore_mod / (probsFore_back_mod + probsFore_fore_mod)
     probsFore_back_modp <- probsFore_back_mod / (probsFore_back_mod + probsFore_fore_mod)
     probsBack_fore_modp <- probsBack_fore_mod / (probsBack_back_mod + probsBack_fore_mod)
     
@@ -156,8 +156,9 @@ calculate.roc <- function(foreground.values, background.values, main = "") {
   perf <- performance( pred, "tpr", "fpr" )
   auc <- performance( pred, "auc" )
   
-  par(mar=c(5.1,5.1,4.1,2.1))
-  plot(perf, main = paste(main, " AUC: ", round(attributes(auc)$y.values[[1]], 3), sep = " "), cex.axis = 2, cex.lab = 2, lwd = 4)
+  plot(perf, main = paste(main, " AUC: ", round(attributes(auc)$y.values[[1]], 3), sep = " "), ...)
   text(0.5, 0.5, paste("AUC:",round(attributes(auc)$y.values[[1]], 3)), cex=2)
+  
+  if(return.fcps) return(cbind(returnValsProbabilities, returnValsLabels))
 }
 

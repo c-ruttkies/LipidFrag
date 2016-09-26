@@ -24,7 +24,7 @@ predict.lipidmaps.class <- function(metfrag.csv.file, lipid.class.models, sep = 
 #
 annotate.lipidmaps.class <- function(metfrag.csv.file, lipid.class.models, sep = ",") {
   # read result file
-  data <- read.csv(metfrag.csv.file, header = T, sep = sep)
+  data <- read.csv(metfrag.csv.file, header = T, sep = sep, comment.char="")
   
   annotated.candidate.list <- get.fcps.candidate.list(data, lipid.class.models)
   
@@ -49,3 +49,59 @@ get.fcps.candidate.list <- function(candidate.list, lipid.class.models) {
   colnames(annotated.candidate.list) <- c(colnames(candidate.list), c("FCP", "LipidMapsClass"))
   return(annotated.candidate.list)
 } 
+
+# get pessimistic rank of candidates matching given InChIKeys or LipidMaps identifiers
+# Output: Rank, BetterCandidates, EqualCandidates, WorseCandidates, TotalCandiates, Identifier
+
+get.pessimistic.rank <- function(candidate.list, inchikey1s = NULL, lmids = NULL) {
+  if(is.null(inchikey1s) && is.null(lmids)) {
+    cat("Error: InChIKey1 or LMID needed.\n")
+    return(NA)
+  }
+  if(is.null(lmids)) {
+    correct.scores <- candidate.list[as.character(candidate.list[,c("InChIKey1")]) %in% inchikey1s, c("Score", "Identifier")]
+    wrong.scores <- candidate.list[!as.character(candidate.list[,c("InChIKey1")]) %in% inchikey1s, c("Score")]
+  }
+  else {
+    inchikey1s <- as.character(candidate.list[as.character(candidate.list[,"Identifier"]) %in% lmids, "InChIKey1"])
+    correct.scores <- candidate.list[as.character(candidate.list[,c("InChIKey1")]) %in% inchikey1s, c("Score", "Identifier")]
+    wrong.scores <- candidate.list[!as.character(candidate.list[,c("InChIKey1")]) %in% inchikey1s, c("Score")]
+  }
+  if(dim(correct.scores)[1] == 0) {
+    cat("Error: Identifier not found in candidate list.\n")
+    return(NA)
+  }
+  max.correct.score <- correct.scores[which.max(correct.scores[,1]),]
+  if(length(wrong.scores) == 0) {
+    return.vals <- data.frame(Rank=1,BC=0,EC=0,WC=0,TC=1,ID=max.correct.score[,2])
+    return(return.vals)
+  }
+  equal.cands <- length(which(max.correct.score[,1] == wrong.scores))
+  better.cands <- length(which(max.correct.score[,1] < wrong.scores))
+  worse.cands <- length(which(max.correct.score[,1] > wrong.scores))
+  return.vals <- data.frame(Rank = better.cands + equal.cands + 1, BC = better.cands, 
+                    EQ = equal.cands, WC = worse.cands, TC = length(wrong.scores) + 1, 
+                    ID = max.correct.score[,2])
+  return(return.vals)
+}
+
+# get pessimistic rank of FCP filtered candidates matching given InChIKeys or LipidMaps identifiers
+
+get.pessimistic.rank.annotated <- function(annotated.candidate.list, inchikey1s = NULL, lmids = NULL, fcp.threshold = 0.9) {
+  if(length(which(colnames(annotated.candidate.list) %in% "FCP")) == 0) {
+    cat("Error: Given candidate list is not annotated with FCP.\n")
+    return(NA)
+  }
+  # filter candidate list by FCP
+  candidate.list.filtered <- annotated.candidate.list[!is.na(annotated.candidate.list[,"FCP"]),]
+  candidate.list.filtered <- candidate.list.filtered[as.numeric(as.vector(candidate.list.filtered[,"FCP"])) >= fcp.threshold,]
+  to.return <- get.pessimistic.rank(candidate.list.filtered, inchikey1s = inchikey1s, lmids = lmids)
+  if(length(to.return) && is.na(to.return)) {return(to.return)}
+  to.return <- 
+    cbind(to.return, 
+        as.numeric(as.vector(candidate.list.filtered[
+          as.character(candidate.list.filtered[,"Identifier"]) == as.character(as.vector(to.return["ID"])[1,1]),"FCP"
+      ])))
+  names(to.return)[7] <- "FCP"
+  return(to.return)
+}

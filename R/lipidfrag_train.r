@@ -1,5 +1,22 @@
 source("lipidfrag_functions.r")
 
+# helper function to generate model for single lipid class
+
+generate.single.model <- function(fg.values, bg.values) {
+  # calculate model parameters for foreground data
+  fg.gamma.model = get.model.params.gamma(fg.values)
+  # calculate model parameters for background data
+  bg.gamma.model = get.model.params.gamma(bg.values)
+  
+  model <- list()
+  model[["fg"]] <- fg.gamma.model
+  model[["bg"]] <- bg.gamma.model
+  model[["data_fg"]] <- fg.values
+  model[["data_bg"]] <- bg.values
+  
+  return(model)
+}
+
 
 # reads lipid class training file with foreground and background scores to generate the prediction models
 # generates a model for one particular lipid class
@@ -52,16 +69,8 @@ generate.model <- function(filename) {
     # filtering values lower than 1 for background data
     bg.values <- bg.values[ bg.values > 1 ] 
     
-    # calculate model parameters for foreground data
-    fg.gamma.model = get.model.params.gamma(fg.values)
-    # calculate model parameters for background data
-    bg.gamma.model = get.model.params.gamma(bg.values)
-    
-    models[[lipid.class]] <<- list()
-    models[[lipid.class]][["fg"]] <<- fg.gamma.model
-    models[[lipid.class]][["bg"]] <<- bg.gamma.model
-    models[[lipid.class]][["data_fg"]] <<- fg.values
-    models[[lipid.class]][["data_bg"]] <<- bg.values
+    models[[lipid.class]] <<- generate.single.model(fg.values, bg.values)
+ 
   })
   # return
   return(models)

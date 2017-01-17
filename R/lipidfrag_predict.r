@@ -40,7 +40,7 @@ get.fcps.candidate.list <- function(candidate.list, lipid.class.models) {
     row <- candidate.list[row.index,]
     identifier <- as.character(row[1, "Identifier"])
     score <- as.numeric(row[1, "FragmenterScore"])
-    matching.model.index <- which(sapply(class.names.model, function(x) {startsWith(identifier, x)}))
+    matching.model.index <- which(sapply(class.names.model, function(x) {any(startsWith(identifier, unlist(strsplit(x,"_"))))}))
     if(length(matching.model.index) == 0) { return(c(0, identifier)) }
     if(length(matching.model.index) == 0) stop("More than one matching model for Identifier ", identifier, ". ", "Which shall I use?", sep="")
     return(c(get.posterior.foreground(score, lipid.class.models[[matching.model.index]]), class.names.model[matching.model.index]))

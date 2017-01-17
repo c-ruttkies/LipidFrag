@@ -30,9 +30,18 @@ get.model.params.gamma <- function(values) {
 # calculate posterior foreground class probability (FCP) for a given value
 
 get.posterior.foreground <- function(value, model) {
+  type <- model[["type"]]
   backDensity <- get.weighted.gamma.density(value, 0.5, model[["bg"]][1], model[["bg"]][2])
-  foreDensity <- get.weighted.gamma.density(value, 0.5, model[["fg"]][1], model[["fg"]][2])
-  
+  foreDensity <- 0
+  if(type == "mix") {
+    # calculate mixture model foreground probability weighted by the number of classes: 1 / length(model[["fg"]])
+    sapply(1:length(model[["fg"]]), function(index) {
+      foreDensity <<- foreDensity + get.weighted.gamma.density(value, 1 / length(model[["fg"]]), model[["fg"]][[index]][1], model[["fg"]][[index]][2])
+    })
+    foreDensity <<- foreDensity * 0.5
+  } else {
+    foreDensity <- get.weighted.gamma.density(value, 0.5, model[["fg"]][1], model[["fg"]][2])
+  }
   if(value == 0) return(0.0)
   return(foreDensity / (foreDensity + backDensity))
 }
@@ -161,3 +170,27 @@ get.pessimistic.rank.annotated <- function(annotated.candidate.list, inchikey1s 
   return(return.vals)
 }
 
+# retrieve upper liebisch level for given lipidmaps id
+
+get.liebisch.annotation <- function(lmid) {
+  require(jsonlite)
+  out <- try(fromJSON(paste("http://www.lipidmaps.org/rest/compound/lm_id/",lmid,"/name",sep="")))
+  anno <- "NA"
+  if(!is.null(out$name)) {
+    format.ok <- length(grep("^[A-z]*-*[A-z]*[0-9]*\\([0-9]+:[0-9]+.*\\)", out$name))
+    if(format.ok > 0) {
+      prefix <- gsub("(^[A-z]*-*[A-z]*[0-9]*)\\(.*", "\\1", out$name)
+      content <- gsub("^[A-z]*-*[A-z]*[0-9]*\\((.*)\\)", "\\1", out$name)
+      content <- gsub("\\(([0-9]*,*[A-Z]*)+\\)", "", content)
+      content.split <- unlist(strsplit(content, "/"))
+      values <- matrix(as.numeric(unlist(strsplit(content.split, ":"))), ncol=2, byrow=T)
+      if(dim(values)[1]>1) {
+        liebisch.content <- paste(apply(values[order(values[,1]),], 1, function(x) paste(x,collapse=":")),collapse="_")
+      } else {
+        liebisch.content <- paste(values[1,], collapse="_")
+      }
+      anno <- paste(prefix,"(",liebisch.content,")",sep="")
+    }
+  }
+  return(anno)
+}

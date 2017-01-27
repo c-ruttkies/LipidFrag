@@ -6,7 +6,7 @@ MetFrag based lipid identification
 ##### Requirements
 - Java >= 1.6
 - R >= 3.1.1
-- R packages: gdata, ROCR
+- R packages: gdata, ROCR, jsonlite
 
 R scripts
 ---------

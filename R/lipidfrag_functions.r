@@ -29,7 +29,7 @@ get.model.params.gamma <- function(values) {
 
 # calculate posterior foreground class probability (FCP) for a given value
 
-get.posterior.foreground <- function(value, model) {
+get.posterior.foreground <- function(value, model, detailed = F) {
   type <- model[["type"]]
   backDensity <- get.weighted.gamma.density(value, 0.5, model[["bg"]][1], model[["bg"]][2])
   foreDensity <- 0
@@ -42,8 +42,18 @@ get.posterior.foreground <- function(value, model) {
   } else {
     foreDensity <- get.weighted.gamma.density(value, 0.5, model[["fg"]][1], model[["fg"]][2])
   }
-  if(value == 0) return(0.0)
-  return(foreDensity / (foreDensity + backDensity))
+  if(value == 0) {
+    if(detailed) {
+      return(data.frame(FCP=0,ForeProb=0,BackProb=0))
+    } else {
+      return(data.frame(FCP=0))
+    }
+  }
+  if(detailed) {
+    return(data.frame(FCP=(foreDensity / (foreDensity + backDensity)),ForeProb=foreDensity,BackProb=backDensity))
+  } else {
+    return(data.frame(FCP=(foreDensity / (foreDensity + backDensity))))
+  }
 }
 
 
@@ -71,8 +81,7 @@ calculate.single.roc <- function(relsFore, relsBack, thresh) {
 
 get.pessimistic.rank <- function(candidate.list, inchikey1s = NULL, lmids = NULL) {
   if(is.null(inchikey1s) && is.null(lmids)) {
-    cat("Error: InChIKey1 or LMID needed.\n")
-    return(NA)
+    stop("Error: InChIKey1 or LMID needed.\n")
   }
   if(is.null(lmids)) {
     correct.scores <- candidate.list[as.character(candidate.list[,c("InChIKey1")]) %in% inchikey1s, c("Score", "Identifier")]
@@ -86,8 +95,8 @@ get.pessimistic.rank <- function(candidate.list, inchikey1s = NULL, lmids = NULL
     wrong.scores <- sapply(unique(as.character(wrong.scores[,2])), function(x) wrong.scores[which(as.character(wrong.scores[,2]) == x)[1],1])
   }
   if(dim(correct.scores)[1] == 0) {
-    cat("Error: Identifier not found in candidate list.\n")
-    return(NA)
+    print("Error: Identifier not found in candidate list.\n")
+    return("NA")
   }
   max.correct.score <- correct.scores[which.max(correct.scores[,1]),]
   if(length(wrong.scores) == 0) {
@@ -172,24 +181,27 @@ get.pessimistic.rank.annotated <- function(annotated.candidate.list, inchikey1s 
 
 # retrieve upper liebisch level for given lipidmaps id
 
-get.liebisch.annotation <- function(lmid) {
+get.liebisch.annotation <- function(lmid, detailed = F) {
   require(jsonlite)
   out <- try(fromJSON(paste("http://www.lipidmaps.org/rest/compound/lm_id/",lmid,"/name",sep="")))
-  anno <- "NA"
+  if(!detailed) {
+    anno <- data.frame(Liebisch="NA")
+  } else {
+    anno <- data.frame(Liebisch="NA",CommonName="NA")
+  }
   if(!is.null(out$name)) {
-    format.ok <- length(grep("^[A-z]*-*[A-z]*[0-9]*\\([0-9]+:[0-9]+.*\\)", out$name))
+    format.ok <- length(grep("^[A-z]*-*[A-z]*[0-9]*\\([A-Za-z]*-*[0-9]+:[0-9]+.*\\)", out$name))
     if(format.ok > 0) {
       prefix <- gsub("(^[A-z]*-*[A-z]*[0-9]*)\\(.*", "\\1", out$name)
-      content <- gsub("^[A-z]*-*[A-z]*[0-9]*\\((.*)\\)", "\\1", out$name)
+      content <- gsub("^[A-z]*-*[A-z]*[0-9]*\\((.*)\\).*", "\\1", out$name)
       content <- gsub("\\(([0-9]*,*[A-Z]*)+\\)", "", content)
       content.split <- unlist(strsplit(content, "/"))
-      values <- matrix(as.numeric(unlist(strsplit(content.split, ":"))), ncol=2, byrow=T)
-      if(dim(values)[1]>1) {
-        liebisch.content <- paste(apply(values[order(values[,1]),], 1, function(x) paste(x,collapse=":")),collapse="_")
+      liebisch.content <- paste(content.split[order(as.numeric(gsub(":",".",gsub("[A-Za-z]*-*", "", content.split))))], collapse="_")
+      if(detailed) {
+        anno <- data.frame(Liebisch=paste(prefix,"(",liebisch.content,")",sep=""), CommonName=out$name)
       } else {
-        liebisch.content <- paste(values[1,], collapse="_")
+        anno <- data.frame(Liebisch=paste(prefix,"(",liebisch.content,")",sep=""))
       }
-      anno <- paste(prefix,"(",liebisch.content,")",sep="")
     }
   }
   return(anno)

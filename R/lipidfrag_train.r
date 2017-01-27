@@ -70,10 +70,9 @@ generate.model <- function(filename) {
       }
     })
     # collect background data
-    bg.values[[index]] <- bg.data[bg.data[,"CandidateLipidClassType"] == paste(classifier.type.split[1:(length(classifier.type.split)-1)],collapse="_"), "Score"]
-    bg.values <- unlist(bg.values)
+    bg.values <- bg.data[sapply(bg.data[,"SpectrumLipidClassType"], function(x) x %in% classifier.type.split[1:(length(classifier.type.split)-1)]), "Score"]
     # filtering values lower than 1 for background data
-    bg.values <- bg.values[ bg.values > 1 ]
+    bg.values <- bg.values[ bg.values > 0 ]
     # check data
     if(length(bg.values) == 0) {
       stop("No background (bg) data given for", classifier.type, sep = " ")
@@ -108,100 +107,23 @@ plot.model.data <- function(model, main = "Model", ...) {
   }
 }
 
-
-# perform ROC calculation for a specific classifier with 10-fold corss-validation
-
-calculate.roc <- function(foreground.values, background.values, main = "", return.fcps = F, ...) {
-  require(ROCR)
-  
-  is.foreground <- c(rep(T, length(foreground.values)), rep(F, length(background.values)))
-  groups_fore <- rep(1:10, ceiling(length(foreground.values) / 10))[1:length(foreground.values)]
-  groups_back <- rep(1:10, ceiling(length(background.values) / 10))[1:length(background.values)]
-  
-  groups_fore <- sample(groups_fore, length(groups_fore))
-  groups_back <- sample(groups_back, length(groups_back))
-  
-  groups <- c(groups_fore, groups_back)
-  
-  data <- c(foreground.values, background.values)
-  
-  group.numbers <- sort(unique(groups))
-  
-  relsForeAll <- c()
-  relsBackAll <- c()
-  
-  returnValsProbabilities <- c()
-  returnValsLabels <- c()
-  
-  for(i in 1:10) {
-    test.group.number <- i
-    backTrain <- data[groups != i & !is.foreground]
-    backTest <- data[groups==i & !is.foreground]
-    foreTrain <- data[groups!=i & is.foreground]
-    foreTest <- data[groups==i & is.foreground]
-    #gamma dist bg
-    paramsBack <- get.model.params.gamma(backTrain)
-    betaBack <- paramsBack[2]
-    alphaBack <- paramsBack[1]
-    
-    #gamma dist fg
-    paramsFore <- get.model.params.gamma(foreTrain)
-    betaFore <- paramsFore[2]
-    alphaFore <- paramsFore[1]
-    
-    probsBack_back_mod <- sapply(backTest, function(x) get.weighted.gamma.density(x, 0.5, alphaBack, betaBack)) #spez
-    probsFore_fore_mod <- sapply(foreTest, function(x) get.weighted.gamma.density(x, 0.5, alphaFore, betaFore))       #sens
-    probsFore_back_mod <- sapply(foreTest, function(x) get.weighted.gamma.density(x, 0.5, alphaBack, betaBack))
-    probsBack_fore_mod <- sapply(backTest, function(x) get.weighted.gamma.density(x, 0.5, alphaFore, betaFore))
-    
-    probsBack_back_modp <- probsBack_back_mod / (probsBack_back_mod + probsBack_fore_mod)
-    probsFore_fore_modp <- probsFore_fore_mod / (probsFore_back_mod + probsFore_fore_mod)
-    probsFore_back_modp <- probsFore_back_mod / (probsFore_back_mod + probsFore_fore_mod)
-    probsBack_fore_modp <- probsBack_fore_mod / (probsBack_back_mod + probsBack_fore_mod)
-    
-    returnValsProbabilities <- c(returnValsProbabilities, probsFore_fore_modp)
-    returnValsProbabilities <- c(returnValsProbabilities, probsBack_fore_modp)
-    names(returnValsProbabilities) <- NULL
-    returnValsLabels <- c(returnValsLabels, rep("fg", length(probsFore_fore_modp)))
-    returnValsLabels <- c(returnValsLabels, rep("bg", length(probsBack_fore_modp)))
-    
-    relsForeAll <- c(relsForeAll, probsFore_fore_modp / (probsFore_fore_modp + probsFore_back_modp))
-    relsBackAll <- c(relsBackAll, probsBack_back_modp / (probsBack_fore_modp + probsBack_back_modp))
-    
-  }
-  
-  
-  data <- sapply(seq(0, 1, 0.01), function(x) calculate.single.roc(relsForeAll, relsBackAll, x))
-  sorted_spez <- sort(1-data[7,])
-  sorted_sens <- sort(data[6,])
-  
-  pred <- prediction(as.numeric(returnValsProbabilities), returnValsLabels)
-  perf <- performance( pred, "tpr", "fpr" )
-  auc <- performance( pred, "auc" )
-  
-  plot(perf, main = paste(main, " AUC: ", round(attributes(auc)$y.values[[1]], 3), sep = " "), ...)
-  text(0.5, 0.5, paste("AUC:",round(attributes(auc)$y.values[[1]], 3)), cex=2)
-  
-  if(return.fcps) return(cbind(returnValsProbabilities, returnValsLabels))
-}
-
-
-
-calculate.roc <- function(filename, classifier.to.test, main = "", return.fcps = F, ...) {
+calculate.roc <- function(filename, classifier.to.test, main = "", return.fcps = F, variant = 1, ...) {
   require(ROCR)
   
   data <- read.csv(filename, header = T, stringsAsFactors = F)
   data.to.test <- data[data[,"ClassifierType"] == classifier.to.test,]
   spectrum.ids <- unique(data.to.test[,"SpectrumID"])
   
-  foreground.values <- data.to.test[data.to.test[,"Type"] == "fg", "Score"]
-  background.values <- data.to.test[data.to.test[,"Type"] == "bg", "Score"]
+  is.foreground <- data.to.test[,"Type"] == "fg"
   
-  is.foreground <- c(rep(T, length(foreground.values)), rep(F, length(background.values)))
-  
-  unique.fold.ids <- sample(((1:length(spectrum.ids))%%10)+1)
-  names(unique.fold.ids) <- spectrum.ids
-  fold.ids <- unique.fold.ids[data.to.test[,"SpectrumID"]]
+  if(variant == 1) {
+    unique.fold.ids <- sample(((1:length(spectrum.ids))%%10)+1)
+    names(unique.fold.ids) <- spectrum.ids
+    fold.ids <- unique.fold.ids[data.to.test[,"SpectrumID"]]
+  } else {
+    fold.ids.fg <- sample(((1:table(is.foreground)["TRUE"])%%10)+1)
+    fold.ids.bg <- sample(((1:table(is.foreground)["FALSE"])%%10)+1)
+  }
   
   returnValsProbabilities <- c()
   returnValsLabels <- c()
@@ -209,14 +131,33 @@ calculate.roc <- function(filename, classifier.to.test, main = "", return.fcps =
   for(i in 1:10) {
     tmp.trainings.file <- tempfile(pattern = "file", tmpdir = tempdir(), fileext = "")
     # write out training data for this test fold
-    write.table(data.to.test[fold.ids != i,], tmp.trainings.file, sep=",", quote=F)
+    if(variant == 1) {
+      write.table(data.to.test[fold.ids != i,], tmp.trainings.file, sep=",", quote=F, row.names=F)
+    } else {
+      training.data <- rbind(data.to.test[is.foreground,][fold.ids.fg != i,], data.to.test[!is.foreground,][fold.ids.bg != i,])
+      write.table(training.data, tmp.trainings.file, sep=",", quote=F, row.names=F)
+    }
     model <- generate.model(tmp.trainings.file)
     
-    test.data <- data.to.test[fold.ids == i,]
+    unlink(tmp.trainings.file)
+    if(variant == 1) {
+      test.data.tmp <- data.to.test[fold.ids == i,]
+      test.data <- rbind(test.data.tmp[test.data.tmp[test.data.tmp[,"Type"] == "fg","Score"] > 10,], test.data.tmp[test.data.tmp[test.data.tmp[,"Type"] == "bg","Score"] > 0,])
+    } else {
+      test.data.fg <- data.to.test[is.foreground,][fold.ids.fg == i,]
+      test.data.fg <- test.data.fg[test.data.fg["Score"] > 10,]
+      test.data.bg <- data.to.test[!is.foreground,][fold.ids.bg == i,]
+      test.data.bg <- test.data.bg[test.data.bg["Score"] > 0,]
+      
+      test.data <- rbind(test.data.fg, test.data.bg)
+    }
     
-    returnValsProbabilities <- sapply(test.data[,"Score"], function(x) get.posterior.foreground(x, model))
+    # predict
+    returnValsProbabilities <- c(returnValsProbabilities, sapply(test.data[,"Score"], function(x) {
+      get.posterior.foreground(as.numeric(x), model[[1]])
+    }))
     
-    returnValsLabels <- test.data[,"Type"]
+    returnValsLabels <- c(returnValsLabels, unlist(data.frame(fg=1,bg=0)[test.data[,"Type"]]))
 
   }
 

@@ -48,7 +48,7 @@ sapply(names(models.pos), function(class) {plot.model.data(models.pos[[class]], 
 
 ```R
 # ROC curves for negative ionization models
-sapply(names(models.neg), function(class) {calculate.roc(models.neg[[class]]$data_fg, models.neg[[class]]$data_bg, main = paste("ROC of ", class, " (neg)", sep=""))})
+sapply(names(models.neg), function(class) calculate.roc("../data/model_scores_pos.txt", paste(class, models.pos[[class]]$type, sep="_"), main = paste("ROC of ", class, " (pos)", sep=""), variant = 1))
 # ROC curves for positive ionization models
-sapply(names(models.pos), function(class) {calculate.roc(models.pos[[class]]$data_fg, models.pos[[class]]$data_bg, main = paste("ROC of ", class, " (pos)", sep=""))})
+sapply(names(models.pos), function(class) calculate.roc("../data/model_scores_neg.txt", paste(class, models.neg[[class]]$type, sep="_"), main = paste("ROC of ", class, " (neg)", sep=""), variant = 1))
 ```

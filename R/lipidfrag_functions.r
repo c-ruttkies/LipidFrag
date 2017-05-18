@@ -1,4 +1,5 @@
 require(gdata)
+require(MASS)
 
 #######
 #
@@ -25,6 +26,16 @@ get.model.params.gamma <- function(values) {
   alpha <- mean(values) / beta
   return(c(alpha, beta))
 }
+
+# calculate model parameters of gamma distribution by mle
+
+get.model.params.gamma.mle <- function(values) {
+  estimates <- fitdistr(values, "gamma", start=list(shape=1, rate=1))$estimate
+  beta <- 1 / estimates["rate"]
+  alpha <- estimates["shape"]
+  return(c(alpha, beta))
+}
+
 
 
 # calculate posterior foreground class probability (FCP) for a given value

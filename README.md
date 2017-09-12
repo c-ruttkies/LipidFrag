@@ -11,18 +11,18 @@ MetFrag based lipid identification
 MetFrag
 ---------
 As input LipidFrag requires a MetFrag generated candidate list by using a LipidMaps database. LipidMaps identifiers encode the lipid ontology which is used by LipidFrag. When using MetFragCLI or MetFragR LipidMaps can be included by downloading the database file from the [MSBI website](https://msbi.ipb-halle.de/~cruttkie/databases/lipidmaps.csv) and setting the database:
-``R
+```R
 settingsObject[["MetFragDatabaseType"]]<-"LocalCSV"
 settingsObject[["LocalDatabasePath"]]<-"PATH_TP_LIPIDMAPS_CSV"
 ```
 or for MetFragCLI
-``bash
+```bash
 MetFragDatabaseType=LocalCSV
 LocalDatabasePath=PATH_TP_LIPIDMAPS_CSV
 ```
 
 The generated MetFrag (CSV) output file can then be used as input for 
-``R
+```R
 predict.lipidmaps.class
 ```
 function. See lipidfrag_main.r to try an example.
